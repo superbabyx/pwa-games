@@ -3,41 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>iPad 经典扫雷</title>
+    <title>iPad 经典扫雷 - Win95 风格</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         :root {
-            --bg-color: #e0e0e0;
-            --cell-size: 40px;
-            --font-size: 20px;
+            --bg-color: #bdbdbd;
+            --win-gray: #c0c0c0;
+            --cell-size: 45px; /* 稍微加大一点方便 iPad 触摸 */
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
+            font-family: "MS Sans Serif", Tahoma, sans-serif;
+            background-color: #008080; /* Win95 桌面绿 */
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
+            /* 关键：禁用 iPad 系统交互 */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
             user-select: none;
-            touch-action: manipulation;
+            touch-action: none;
+        }
+        #game-container {
+            background-color: var(--bg-color);
+            padding: 10px;
+            border: 3px outset #eee;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
         }
         #status-bar {
-            margin-bottom: 20px;
-            font-size: 24px;
-            font-weight: bold;
+            background: var(--bg-color);
+            border: 3px inset #eee;
+            margin-bottom: 10px;
+            padding: 5px 15px;
             display: flex;
-            gap: 40px;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 24px;
+            color: red;
+            background: black;
         }
         #board {
             display: grid;
-            gap: 2px;
-            padding: 10px;
-            background-color: #999;
-            border: 4px inset #fff;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            gap: 0;
+            border: 3px inset #eee;
         }
         .cell {
             width: var(--cell-size);
@@ -47,53 +60,58 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: var(--font-size);
+            font-size: 20px;
             font-weight: bold;
-            cursor: pointer;
+            box-sizing: border-box;
+            /* 禁用单元格高亮 */
+            -webkit-user-select: none;
+            touch-action: none;
         }
         .cell.revealed {
             background-color: #d1d1d1;
-            border: 1px solid #999;
+            border: 1px solid #777;
         }
         .cell.mine { background-color: #ff4d4d; }
         .cell.flagged::after { content: "🚩"; }
-        .n1 { color: blue; } .n2 { color: green; } .n3 { color: red; }
+        .n1 { color: blue; } .n2 { color: green; } .n3 { color: red; } .n4 { color: darkblue; }
+        
         button {
-            margin-top: 30px;
-            padding: 10px 20px;
-            font-size: 18px;
-            border-radius: 8px;
-            border: none;
-            background: #007aff;
-            color: white;
+            margin-top: 20px;
+            padding: 8px 20px;
+            font-family: "MS Sans Serif", Tahoma, sans-serif;
+            background: var(--bg-color);
+            border: 2px outset #eee;
+            font-weight: bold;
         }
+        button:active { border-style: inset; }
     </style>
 </head>
 <body>
 
-<div id="status-bar">
-    <div>💣 <span id="mine-count">10</span></div>
-    <div id="timer">⏱️ 0</div>
+<div id="game-container">
+    <div id="status-bar">
+        <div id="mine-count">010</div>
+        <div id="timer">000</div>
+    </div>
+    <div id="board"></div>
 </div>
 
-<div id="board"></div>
-
-<button onclick="initGame()">重新开始</button>
+<button onclick="initGame()">重新开始 (New Game)</button>
 
 <script>
     const rows = 10, cols = 10, minesCount = 10;
-    let board = [], revealedCount = 0, gameOver = false, timerInterval;
+    let board = [], revealedCount = 0, flaggedCount = 0, gameOver = false, timerInterval, time = 0;
 
     function initGame() {
         const boardElement = document.getElementById('board');
         boardElement.style.gridTemplateColumns = `repeat(${cols}, var(--cell-size))`;
         boardElement.innerHTML = '';
-        board = []; revealedCount = 0; gameOver = false;
-        document.getElementById('mine-count').innerText = minesCount;
+        board = []; revealedCount = 0; flaggedCount = 0; gameOver = false; time = 0;
+        
+        updateMineCounter();
         clearInterval(timerInterval);
-        document.getElementById('timer').innerText = "⏱️ 0";
+        document.getElementById('timer').innerText = "000";
 
-        // 创建数据结构
         for (let r = 0; r < rows; r++) {
             board[r] = [];
             for (let c = 0; c < cols; c++) {
@@ -103,24 +121,26 @@
                 div.className = 'cell';
                 div.id = `cell-${r}-${c}`;
                 
-                // 核心交互：短按开启，长按插旗
                 let touchTimer;
+                // iPad 专用触摸逻辑
                 div.addEventListener('touchstart', (e) => {
                     if (gameOver) return;
                     touchTimer = setTimeout(() => {
                         toggleFlag(cell);
                         touchTimer = null;
-                    }, 400); // 长按 400ms 插旗
-                });
+                    }, 350); // 350ms 触发插旗
+                }, { passive: true });
+
                 div.addEventListener('touchend', (e) => {
                     if (touchTimer) {
                         clearTimeout(touchTimer);
                         revealCell(cell);
                     }
                     e.preventDefault();
-                });
-                // 兼容 PC 点击
-                div.onclick = () => revealCell(cell);
+                }, { passive: false });
+
+                // 兼容 PC
+                div.onclick = () => { if(!window.ontouchstart) revealCell(cell); };
                 div.oncontextmenu = (e) => { e.preventDefault(); toggleFlag(cell); };
 
                 boardElement.appendChild(div);
@@ -137,7 +157,7 @@
             }
         }
 
-        // 计算数字
+        // 计算周围数字
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 if (board[r][c].mine) continue;
@@ -156,6 +176,7 @@
     function revealCell(cell) {
         if (gameOver || cell.revealed || cell.flagged) return;
         cell.revealed = true;
+        revealedCount++;
         const el = document.getElementById(`cell-${cell.r}-${cell.c}`);
         el.classList.add('revealed');
 
@@ -169,36 +190,67 @@
             el.innerText = cell.count;
             el.classList.add('n' + cell.count);
         } else {
-            // 递归打开空格
             for (let i = -1; i <= 1; i++) {
                 for (let j = -1; j <= 1; j++) {
                     if (board[cell.r+i]?.[cell.c+j]) revealCell(board[cell.r+i][cell.c+j]);
                 }
             }
         }
-
-        revealedCount++;
-        if (revealedCount === rows * cols - minesCount) endGame(true);
+        checkWin();
     }
 
     function toggleFlag(cell) {
         if (gameOver || cell.revealed) return;
         cell.flagged = !cell.flagged;
+        flaggedCount += cell.flagged ? 1 : -1;
         document.getElementById(`cell-${cell.r}-${cell.c}`).classList.toggle('flagged');
+        updateMineCounter();
+        checkWin();
+    }
+
+    function updateMineCounter() {
+        let display = Math.max(0, minesCount - flaggedCount);
+        document.getElementById('mine-count').innerText = display.toString().padStart(3, '0');
+    }
+
+    function checkWin() {
+        // 胜利条件：
+        // 1. 所有非雷格子都被翻开 (revealedCount === 总格子 - 雷数)
+        // 2. 所有雷都被标记 (flaggedCount === minesCount) 且 标记的全部是雷
+        const allCleared = (revealedCount === (rows * cols - minesCount));
+        
+        // 严格检查：是否所有雷都被插旗了
+        let allMinesFlagged = true;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (board[r][c].mine && !board[r][c].flagged) allMinesFlagged = false;
+            }
+        }
+
+        if (allCleared && allMinesFlagged) {
+            endGame(true);
+        }
     }
 
     function startTimer() {
-        let s = 0;
         timerInterval = setInterval(() => {
-            s++;
-            document.getElementById('timer').innerText = "⏱️ " + s;
+            time++;
+            document.getElementById('timer').innerText = time.toString().padStart(3, '0');
         }, 1000);
     }
 
     function endGame(win) {
         gameOver = true;
         clearInterval(timerInterval);
-        alert(win ? "🎉 你赢了！" : "💥 踩到雷了！");
+        // 显示所有地雷
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (board[r][c].mine) {
+                    document.getElementById(`cell-${r}-${c}`).innerText = "💣";
+                }
+            }
+        }
+        setTimeout(() => alert(win ? "🚩 恭喜！你扫清了所有地雷！" : "💥 炸弹爆炸了，游戏结束。"), 100);
     }
 
     initGame();
