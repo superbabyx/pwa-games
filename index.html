@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retro PWA Arcade</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        :root {
+            --win-teal: #008080;
+            --win-gray: #c0c0c0;
+            --win-border-light: #ffffff;
+            --win-border-dark: #808080;
+            --win-blue: #000080;
+        }
+
+        body {
+            background-color: var(--win-teal);
+            margin: 0;
+            padding: 20px;
+            font-family: "MS Sans Serif", Tahoma, sans-serif;
+            user-select: none;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* 桌面图标布局 */
+        #desktop {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, 90px);
+            grid-template-rows: repeat(auto-fill, 100px);
+            gap: 20px;
+            align-content: start;
+        }
+
+        .icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: white;
+            text-align: center;
+            outline: none;
+        }
+
+        .icon-box {
+            width: 42px;
+            height: 42px;
+            margin-bottom: 8px;
+            background: var(--win-gray);
+            border: 2px outset #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 1px 1px 0 #000;
+        }
+
+        .icon span {
+            font-size: 11px;
+            padding: 2px 4px;
+            letter-spacing: 0.5px;
+            word-break: break-all;
+            max-width: 85px;
+        }
+
+        /* 模拟选中效果 */
+        .icon:focus span, .icon:active span {
+            background-color: var(--win-blue);
+            outline: 1px dotted #fff;
+        }
+
+        /* 底部任务栏 */
+        .taskbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 35px;
+            background: var(--win-gray);
+            border-top: 2px solid var(--win-border-light);
+            display: flex;
+            align-items: center;
+            padding: 2px;
+            z-index: 100;
+            box-shadow: inset 1px 1px #dfdfdf;
+        }
+
+        .start-button {
+            height: 28px;
+            padding: 0 8px;
+            border: 2px outset #eee;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--win-gray);
+            font-size: 13px;
+        }
+
+        .start-button:active {
+            border-style: inset;
+            padding: 2px 6px 0 10px;
+        }
+
+        .system-tray {
+            margin-left: auto;
+            border: 2px inset #eee;
+            padding: 0 10px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            background: var(--win-gray);
+        }
+
+        /* 加载状态指示器 */
+        #loading-msg {
+            color: white;
+            font-size: 14px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-msg">正在扫描磁盘 C: ...</div>
+<div id="desktop"></div>
+
+<div class="taskbar">
+    <div class="start-button">
+        <img src="https://win98icons.alexmeub.com/icons/png/windows-0.png" width="16" alt="">
+        Start
+    </div>
+    <div class="system-tray" id="clock">12:00 PM</div>
+</div>
+
+<script>
+    // 配置区域
+    const CONFIG = {
+        username: "superbabyx", // 【重要】请修改为你的 GitHub 用户名
+        repo: "pwa-games",
+        exclude: ["assets", "css", "js", "img", ".github"] // 忽略这些文件夹
+    };
+
+    // 自动为常见游戏匹配图标
+    const ICON_MAP = {
+        "minesweeper": "💣",
+        "tetris": "🧱",
+        "snake": "🐍",
+        "2048": "🔢",
+        "default": "🎮"
+    };
+
+    async function scanGames() {
+        const desktop = document.getElementById('desktop');
+        const loading = document.getElementById('loading-msg');
+
+        try {
+            const apiURL = `https://api.github.com/repos/${CONFIG.username}/${CONFIG.repo}/contents/`;
+            const response = await fetch(apiURL);
+            
+            if (!response.ok) throw new Error("无法读取目录");
+            
+            const items = await response.json();
+            
+            // 过滤文件夹
+            const folders = items.filter(item => 
+                item.type === 'dir' && 
+                !CONFIG.exclude.includes(item.name.toLowerCase()) &&
+                !item.name.startsWith('.')
+            );
+
+            loading.style.display = 'none';
+            desktop.innerHTML = '';
+
+            folders.forEach(folder => {
+                const name = folder.name;
+                const displayName = name.replace(/-/g, ' '); // 将连字符替换为空格
+                const emoji = ICON_MAP[name.toLowerCase()] || ICON_MAP.default;
+
+                const iconLink = document.createElement('a');
+                iconLink.href = `./${name}/index.html`;
+                iconLink.className = 'icon';
+                iconLink.innerHTML = `
+                    <div class="icon-box">${emoji}</div>
+                    <span>${displayName}</span>
+                `;
+                desktop.appendChild(iconLink);
+            });
+
+            if (folders.length === 0) {
+                loading.innerText = "磁盘为空 (未发现子文件夹)";
+                loading.style.display = 'block';
+            }
+
+        } catch (error) {
+            console.error(error);
+            loading.innerText = "系统错误：无法加载游戏列表";
+        }
+    }
+
+    // 时钟功能
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }
+
+    setInterval(updateClock, 1000);
+    updateClock();
+    scanGames();
+</script>
+
+</body>
+</html>
