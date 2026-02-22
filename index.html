@@ -2,218 +2,230 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retro PWA Arcade</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Retro Game Station</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         :root {
             --win-teal: #008080;
             --win-gray: #c0c0c0;
-            --win-border-light: #ffffff;
-            --win-border-dark: #808080;
-            --win-blue: #000080;
+            --glass: rgba(255, 255, 255, 0.1);
         }
 
         body {
             background-color: var(--win-teal);
+            /* 模拟经典的 Win95 桌面贴图或纯色 */
+            background-image: radial-gradient(#006666 1px, transparent 1px);
+            background-size: 20px 20px;
             margin: 0;
-            padding: 20px;
-            font-family: "MS Sans Serif", Tahoma, sans-serif;
-            user-select: none;
-            overflow: hidden;
+            padding: 0;
+            font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif;
+            display: flex;
+            flex-direction: column;
             height: 100vh;
+            overflow: hidden;
+            color: white;
         }
 
-        /* 桌面图标布局 */
+        header {
+            padding: 40px 20px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            text-shadow: 2px 2px #000;
+            font-family: "Courier New", monospace;
+        }
+
+        /* iPad 网格布局 */
         #desktop {
+            flex: 1;
             display: grid;
-            grid-template-columns: repeat(auto-fill, 90px);
-            grid-template-rows: repeat(auto-fill, 100px);
-            gap: 20px;
-            align-content: start;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-auto-rows: 160px;
+            gap: 25px;
+            padding: 20px 40px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
-        .icon {
+        .game-card {
+            background: var(--win-gray);
+            border: 4px outset #fff;
+            box-shadow: 10px 10px 0px rgba(0,0,0,0.3);
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
             text-decoration: none;
-            color: white;
-            text-align: center;
-            outline: none;
+            color: #000;
+            transition: transform 0.1s, box-shadow 0.1s;
+            position: relative;
         }
 
-        .icon-box {
-            width: 42px;
-            height: 42px;
-            margin-bottom: 8px;
+        /* 触摸反馈：按下时产生凹陷感 */
+        .game-card:active {
+            transform: translate(4px, 4px);
+            box-shadow: 2px 2px 0px rgba(0,0,0,0.3);
+            border-style: inset;
+        }
+
+        .icon-wrapper {
+            font-size: 60px;
+            margin-bottom: 10px;
+            filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.2));
+        }
+
+        .game-title {
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            background: #000080;
+            color: white;
+            padding: 2px 10px;
+            width: 80%;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 加载动画 */
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--win-teal);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .win-progress {
+            width: 200px;
+            height: 20px;
+            border: 2px inset #eee;
+            background: var(--win-gray);
+            padding: 2px;
+        }
+
+        .win-progress-bar {
+            height: 100%;
+            background: #000080;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* 底部操作栏 */
+        .dock {
+            height: 80px;
+            background: rgba(192, 192, 192, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-top: 2px solid #fff;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .dock-icon {
+            width: 50px;
+            height: 50px;
             background: var(--win-gray);
             border: 2px outset #eee;
+            margin: 0 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
-            box-shadow: 1px 1px 0 #000;
-        }
-
-        .icon span {
-            font-size: 11px;
-            padding: 2px 4px;
-            letter-spacing: 0.5px;
-            word-break: break-all;
-            max-width: 85px;
-        }
-
-        /* 模拟选中效果 */
-        .icon:focus span, .icon:active span {
-            background-color: var(--win-blue);
-            outline: 1px dotted #fff;
-        }
-
-        /* 底部任务栏 */
-        .taskbar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 35px;
-            background: var(--win-gray);
-            border-top: 2px solid var(--win-border-light);
-            display: flex;
-            align-items: center;
-            padding: 2px;
-            z-index: 100;
-            box-shadow: inset 1px 1px #dfdfdf;
-        }
-
-        .start-button {
-            height: 28px;
-            padding: 0 8px;
-            border: 2px outset #eee;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            background: var(--win-gray);
-            font-size: 13px;
-        }
-
-        .start-button:active {
-            border-style: inset;
-            padding: 2px 6px 0 10px;
-        }
-
-        .system-tray {
-            margin-left: auto;
-            border: 2px inset #eee;
-            padding: 0 10px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            font-size: 12px;
-            background: var(--win-gray);
-        }
-
-        /* 加载状态指示器 */
-        #loading-msg {
-            color: white;
-            font-size: 14px;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            font-size: 24px;
         }
     </style>
 </head>
 <body>
 
-<div id="loading-msg">正在扫描磁盘 C: ...</div>
-<div id="desktop"></div>
-
-<div class="taskbar">
-    <div class="start-button">
-        <img src="https://win98icons.alexmeub.com/icons/png/windows-0.png" width="16" alt="">
-        Start
+<div id="loading-overlay">
+    <h2 style="font-family: monospace;">SYSTEM STARTING...</h2>
+    <div class="win-progress">
+        <div class="win-progress-bar" id="pb"></div>
     </div>
-    <div class="system-tray" id="clock">12:00 PM</div>
+</div>
+
+<header>
+    <h1>SELECT GAME</h1>
+</header>
+
+<div id="desktop">
+    </div>
+
+<div class="dock">
+    <div class="dock-icon">🏠</div>
+    <div class="dock-icon">⚙️</div>
+    <div class="dock-icon" onclick="location.reload()">🔄</div>
 </div>
 
 <script>
-    // 配置区域
     const CONFIG = {
-        username: "superbabyx", // 【重要】请修改为你的 GitHub 用户名
+        username: "superbabyx", 
         repo: "pwa-games",
-        exclude: ["assets", "css", "js", "img", ".github"] // 忽略这些文件夹
+        exclude: ["assets", "css", "js", "img", ".github", ".gitignore"]
     };
 
-    // 自动为常见游戏匹配图标
     const ICON_MAP = {
         "minesweeper": "💣",
         "tetris": "🧱",
         "snake": "🐍",
-        "2048": "🔢",
         "default": "🎮"
     };
 
     async function scanGames() {
         const desktop = document.getElementById('desktop');
-        const loading = document.getElementById('loading-msg');
-
+        const pb = document.getElementById('pb');
+        
         try {
-            const apiURL = `https://api.github.com/repos/${CONFIG.username}/${CONFIG.repo}/contents/`;
-            const response = await fetch(apiURL);
+            pb.style.width = "30%";
+            const response = await fetch(`https://api.github.com/repos/${CONFIG.username}/${CONFIG.repo}/contents/`);
+            pb.style.width = "70%";
             
-            if (!response.ok) throw new Error("无法读取目录");
-            
+            if (!response.ok) throw new Error();
             const items = await response.json();
             
-            // 过滤文件夹
             const folders = items.filter(item => 
                 item.type === 'dir' && 
                 !CONFIG.exclude.includes(item.name.toLowerCase()) &&
                 !item.name.startsWith('.')
             );
 
-            loading.style.display = 'none';
-            desktop.innerHTML = '';
+            pb.style.width = "100%";
+            setTimeout(() => {
+                document.getElementById('loading-overlay').style.display = 'none';
+            }, 500);
 
+            desktop.innerHTML = '';
             folders.forEach(folder => {
                 const name = folder.name;
-                const displayName = name.replace(/-/g, ' '); // 将连字符替换为空格
                 const emoji = ICON_MAP[name.toLowerCase()] || ICON_MAP.default;
-
-                const iconLink = document.createElement('a');
-                iconLink.href = `./${name}/index.html`;
-                iconLink.className = 'icon';
-                iconLink.innerHTML = `
-                    <div class="icon-box">${emoji}</div>
-                    <span>${displayName}</span>
+                
+                const card = document.createElement('a');
+                card.href = `./${name}/index.html`;
+                card.className = 'game-card';
+                card.innerHTML = `
+                    <div class="icon-wrapper">${emoji}</div>
+                    <div class="game-title">${name}</div>
                 `;
-                desktop.appendChild(iconLink);
+                desktop.appendChild(card);
             });
 
-            if (folders.length === 0) {
-                loading.innerText = "磁盘为空 (未发现子文件夹)";
-                loading.style.display = 'block';
-            }
-
-        } catch (error) {
-            console.error(error);
-            loading.innerText = "系统错误：无法加载游戏列表";
+        } catch (e) {
+            document.getElementById('loading-overlay').innerHTML = "<h1>SYSTEM ERROR</h1><p>Check GitHub Repository Visibility</p>";
         }
     }
 
-    // 时钟功能
-    function updateClock() {
-        const now = new Date();
-        document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    }
-
-    setInterval(updateClock, 1000);
-    updateClock();
     scanGames();
 </script>
-
 </body>
 </html>
